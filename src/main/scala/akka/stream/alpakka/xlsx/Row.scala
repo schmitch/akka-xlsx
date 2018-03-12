@@ -3,7 +3,7 @@ package akka.stream.alpakka.xlsx
 import scala.collection.mutable
 
 final class Row(
-    rowNum: Int,
+    val rowNum: Int,
     private val cellMap: mutable.TreeMap[Int, Cell]
 ) {
 
