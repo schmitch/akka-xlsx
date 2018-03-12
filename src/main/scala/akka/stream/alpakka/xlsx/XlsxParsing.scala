@@ -73,7 +73,7 @@ object XlsxParsing {
           var contentBuilder: Option[java.lang.StringBuilder] = None
           var cellList: mutable.TreeMap[Int, Cell]            = mutable.TreeMap.empty
           var rowNum                                          = 1
-          var cellNum                                         = 0
+          var cellNum                                         = 1
           var ref: Option[CellReference]                      = None
 
           (data: ParseEvent) =>
@@ -94,19 +94,19 @@ object XlsxParsing {
                 nillable({ insideValue = false })
               case EndElement("c") if insideCol =>
                 nillable({
-                  val cell =
-                    buildCell(cellType, contentBuilder, sstMap, ref.getOrElse(CellReference("", cellNum, rowNum)))
+                  val simpleRef = ref.getOrElse(CellReference("", cellNum, rowNum))
+                  val cell = buildCell(cellType, contentBuilder, sstMap, simpleRef)
+                  cellList += (simpleRef.colNum -> cell)
                   ref = None
-                  cellList += (cellNum -> cell)
                   cellNum += 1
                   insideCol = false
                   cellType = None
                   contentBuilder = None
                 })
               case EndElement("row") if insideRow =>
-                val ret = Row(rowNum, cellList)
+                val ret = new Row(rowNum, cellList)
                 rowNum += 1
-                cellNum = 0
+                cellNum = 1
                 cellList = mutable.TreeMap.empty
                 insideRow = false
                 ret :: Nil
