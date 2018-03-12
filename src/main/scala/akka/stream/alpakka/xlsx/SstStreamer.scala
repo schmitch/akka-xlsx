@@ -6,7 +6,7 @@ import java.util.zip.ZipFile
 import akka.stream.Materializer
 import akka.stream.alpakka.xml.scaladsl.XmlParsing
 import akka.stream.alpakka.xml.{ Characters, EndElement, ParseEvent, StartElement }
-import akka.stream.scaladsl.{ Keep, Sink, StreamConverters }
+import akka.stream.scaladsl.{ Keep, Sink, Source, StreamConverters }
 
 import scala.concurrent.Future
 
@@ -22,7 +22,7 @@ object SstStreamer {
   )(implicit materializer: Materializer): Future[Map[Int, String]] = {
     Option(zipFile.getEntry("xl/sharedStrings.xml")) match {
       case Some(entry) => read(zipFile.getInputStream(entry), mapSink)
-      case None        => Future.successful(Map.empty)
+      case None        => Source.empty[(Int, String)].toMat(mapSink)(Keep.right).run()
     }
   }
 
