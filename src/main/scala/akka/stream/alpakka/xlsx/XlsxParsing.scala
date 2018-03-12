@@ -94,7 +94,8 @@ object XlsxParsing {
                 nillable({ insideValue = false })
               case EndElement("c") if insideCol =>
                 nillable({
-                  val cell = buildCell(cellType, contentBuilder, sstMap, ref.getOrElse(CellReference(cellNum, rowNum)))
+                  val cell =
+                    buildCell(cellType, contentBuilder, sstMap, ref.getOrElse(CellReference("", cellNum, rowNum)))
                   ref = None
                   cellList += (cellNum -> cell)
                   cellNum += 1
