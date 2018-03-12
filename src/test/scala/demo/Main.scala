@@ -32,12 +32,13 @@ object Main {
     implicit val materializer: Materializer = ActorMaterializer()
     implicit val ec: ExecutionContext       = actorSystem.dispatcher
 
-    val sheetName = "sheet1"
+    val sheetId = 1
+    val sheetName = "Blatt1"
     val path      = Paths.get(args(0))
 
     val zipFile = new ZipFile(path.toFile)
 
-    val done = XlsxParsing.fromZipFile(zipFile, sheetName).runForeach { row =>
+    val done = XlsxParsing.fromZipFile(zipFile, sheetId).runForeach { row =>
       println(row)
     }
 

@@ -1,5 +1,6 @@
 package akka.stream.alpakka.xlsx
 
+import java.io.FileNotFoundException
 import java.util.zip.{ ZipEntry, ZipFile }
 
 import akka.NotUsed
@@ -13,12 +14,28 @@ import scala.concurrent.Future
 
 object XlsxParsing {
 
+  def fromZipFile(file: ZipFile, sheetId: Int)(implicit materializer: Materializer): Source[Row, NotUsed] = {
+    fromZipFile(
+      file,
+      sheetId,
+      Sink.fold[Map[Int, String], (Int, String)](Map.empty[Int, String])((v1, v2) => v1 + v2)
+    )
+  }
+
   def fromZipFile(file: ZipFile, sheetName: String)(implicit materializer: Materializer): Source[Row, NotUsed] = {
     fromZipFile(
       file,
       sheetName,
-      Sink.fold(Map.empty[Int, String])((v1, v2) => v1 + v2)
+      Sink.fold[Map[Int, String], (Int, String)](Map.empty[Int, String])((v1, v2) => v1 + v2)
     )
+  }
+
+  def fromZipFile(
+      file: ZipFile,
+      sheetId: Int,
+      sstSink: Sink[(Int, String), Future[Map[Int, String]]]
+  )(implicit materializer: Materializer): Source[Row, NotUsed] = {
+    read(file, SheetType.Id(sheetId), sstSink)
   }
 
   def fromZipFile(
@@ -26,10 +43,7 @@ object XlsxParsing {
       sheetName: String,
       sstSink: Sink[(Int, String), Future[Map[Int, String]]]
   )(implicit materializer: Materializer): Source[Row, NotUsed] = {
-    Option(file.getEntry(s"xl/worksheets/$sheetName.xml")) match {
-      case Some(entry) => read(file, entry, sstSink)
-      case None        => Source.failed(new Exception("no valid worksheet found"))
-    }
+    read(file, SheetType.Name(sheetName), sstSink)
   }
 
   private def nillable(s: => Any): List[Row] = {
@@ -55,65 +69,79 @@ object XlsxParsing {
     }
   }
 
+  private def getSheetStream(file: ZipFile, typ: SheetType, workbook: Workbook) = {
+    val io = typ match {
+      case SheetType.Name(name) =>
+        workbook.sheets.get(name).flatMap(v => Option(file.getEntry(s"xl/worksheets/sheet$v.xml")))
+      case SheetType.Id(id) => Option(file.getEntry(s"xl/worksheets/sheet$id.xml"))
+    }
+    io match {
+      case Some(entry) => file.getInputStream(entry)
+      case None        => throw new FileNotFoundException(s"workbook sheet $typ could not be found")
+    }
+  }
+
   private def read(
       file: ZipFile,
-      entry: ZipEntry,
+      typ: SheetType,
       sstSink: Sink[(Int, String), Future[Map[Int, String]]]
   )(implicit materializer: Materializer) = {
+    Source
+      .fromFuture(SstStreamer.readSst(file, sstSink))
+      .flatMapConcat(sst => Source.fromFuture(WorkbookStreamer.readWorkbook(sst, file)))
+      .flatMapConcat { workbook =>
+        StreamConverters
+          .fromInputStream(() => getSheetStream(file, typ, workbook))
+          .via(XmlParsing.parser)
+          .statefulMapConcat[Row](() => {
+            var insideRow: Boolean                              = false
+            var insideCol: Boolean                              = false
+            var insideValue: Boolean                            = false
+            var cellType: Option[CellType]                      = None
+            var contentBuilder: Option[java.lang.StringBuilder] = None
+            var cellList: mutable.TreeMap[Int, Cell]            = mutable.TreeMap.empty
+            var rowNum                                          = 1
+            var cellNum                                         = 1
+            var ref: Option[CellReference]                      = None
 
-    Source.fromFuture(SstStreamer.readSst(file, sstSink)).flatMapConcat { sstMap =>
-      StreamConverters
-        .fromInputStream(() => file.getInputStream(entry))
-        .via(XmlParsing.parser)
-        .statefulMapConcat[Row](() => {
-          var insideRow: Boolean                              = false
-          var insideCol: Boolean                              = false
-          var insideValue: Boolean                            = false
-          var cellType: Option[CellType]                      = None
-          var contentBuilder: Option[java.lang.StringBuilder] = None
-          var cellList: mutable.TreeMap[Int, Cell]            = mutable.TreeMap.empty
-          var rowNum                                          = 1
-          var cellNum                                         = 1
-          var ref: Option[CellReference]                      = None
-
-          (data: ParseEvent) =>
-            data match {
-              case StartElement("row", _, _, _, _) => nillable(insideRow = true)
-              case StartElement("c", attrs, _, _, _) if insideRow =>
-                nillable({
-                  ref = CellReference.parseRef(attrs)
-                  contentBuilder = Some(new java.lang.StringBuilder())
-                  cellType = attrs.find(_.name == "t").map(a => CellType.parse(a.value))
-                  insideCol = true
-                })
-              case StartElement("v", _, _, _, _) if insideCol =>
-                nillable({ insideValue = true })
-              case Characters(text) if insideValue =>
-                nillable(contentBuilder.foreach(_.append(text)))
-              case EndElement("v") if insideValue =>
-                nillable({ insideValue = false })
-              case EndElement("c") if insideCol =>
-                nillable({
-                  val simpleRef = ref.getOrElse(CellReference("", cellNum, rowNum))
-                  val cell = buildCell(cellType, contentBuilder, sstMap, simpleRef)
-                  cellList += (simpleRef.colNum -> cell)
-                  ref = None
-                  cellNum += 1
-                  insideCol = false
-                  cellType = None
-                  contentBuilder = None
-                })
-              case EndElement("row") if insideRow =>
-                val ret = new Row(rowNum, cellList)
-                rowNum += 1
-                cellNum = 1
-                cellList = mutable.TreeMap.empty
-                insideRow = false
-                ret :: Nil
-              case _ => Nil // ignore unused stuff
-            }
-        })
-    }
+            (data: ParseEvent) =>
+              data match {
+                case StartElement("row", _, _, _, _) => nillable(insideRow = true)
+                case StartElement("c", attrs, _, _, _) if insideRow =>
+                  nillable({
+                    ref = CellReference.parseRef(attrs)
+                    contentBuilder = Some(new java.lang.StringBuilder())
+                    cellType = attrs.find(_.name == "t").map(a => CellType.parse(a.value))
+                    insideCol = true
+                  })
+                case StartElement("v", _, _, _, _) if insideCol =>
+                  nillable({ insideValue = true })
+                case Characters(text) if insideValue =>
+                  nillable(contentBuilder.foreach(_.append(text)))
+                case EndElement("v") if insideValue =>
+                  nillable({ insideValue = false })
+                case EndElement("c") if insideCol =>
+                  nillable({
+                    val simpleRef = ref.getOrElse(CellReference("", cellNum, rowNum))
+                    val cell      = buildCell(cellType, contentBuilder, workbook.sst, simpleRef)
+                    cellList += (simpleRef.colNum -> cell)
+                    ref = None
+                    cellNum += 1
+                    insideCol = false
+                    cellType = None
+                    contentBuilder = None
+                  })
+                case EndElement("row") if insideRow =>
+                  val ret = new Row(rowNum, cellList)
+                  rowNum += 1
+                  cellNum = 1
+                  cellList = mutable.TreeMap.empty
+                  insideRow = false
+                  ret :: Nil
+                case _ => Nil // ignore unused stuff
+              }
+          })
+      }
   }
 
 }
