@@ -1,4 +1,4 @@
-package example
+package akka.stream.alpakka.xlsx
 
 import scala.util.{ Failure, Success, Try }
 
@@ -23,7 +23,7 @@ object Cell {
     }
   }
 
-  def parseNumeric(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
+  private[xlsx] def parseNumeric(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
     optionBuilderString(value, ref) { data =>
       Try(BigDecimal(data)) match {
         case Success(v) => Cell.Numeric(v, ref)
@@ -32,11 +32,15 @@ object Cell {
     }
   }
 
-  def parseInline(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
+  private[xlsx] def parseInline(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
     value.map(v => Cell.Text(v.toString, ref)).getOrElse(Cell.Blank(ref))
   }
 
-  def parseString(value: Option[java.lang.StringBuilder], sst: Map[Int, String], ref: CellReference): Cell = {
+  private[xlsx] def parseString(
+      value: Option[java.lang.StringBuilder],
+      sst: Map[Int, String],
+      ref: CellReference
+  ): Cell = {
     optionBuilderString(value, ref) { data =>
       Try(sst(Integer.parseInt(data))) match {
         case Success(v) => Cell.Text(v, ref)
@@ -45,7 +49,7 @@ object Cell {
     }
   }
 
-  def parseBoolean(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
+  private[xlsx] def parseBoolean(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
     optionBuilderString(value, ref) { data =>
       Try(java.lang.Boolean.parseBoolean(data)) match {
         case Success(b) => Cell.Bool(b, ref)
@@ -54,7 +58,7 @@ object Cell {
     }
   }
 
-  def parseFormula(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
+  private[xlsx] def parseFormula(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
     value.map(v => Cell.Text(v.toString, ref)).getOrElse(Cell.Blank(ref))
   }
 

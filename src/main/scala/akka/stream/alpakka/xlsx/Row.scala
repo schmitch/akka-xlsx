@@ -1,4 +1,4 @@
-package example
+package akka.stream.alpakka.xlsx
 
 import scala.collection.mutable
 
@@ -8,6 +8,5 @@ final case class Row(
 ) {
 
   def cells: List[Cell] = cellMap.values.toList
-
 
 }

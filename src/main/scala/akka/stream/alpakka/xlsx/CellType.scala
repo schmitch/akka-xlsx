@@ -1,4 +1,4 @@
-package example
+package akka.stream.alpakka.xlsx
 
 sealed trait CellType
 

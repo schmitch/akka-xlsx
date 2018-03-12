@@ -1,4 +1,4 @@
-package example
+package akka.stream.alpakka.xlsx
 
 import java.util.Locale
 
@@ -6,7 +6,7 @@ import akka.stream.alpakka.xml.Attribute
 
 import scala.util.Try
 
-case class CellReference(colNum: Int, rowNum: Int)
+case class CellReference(name: String, colNum: Int, rowNum: Int)
 
 object CellReference {
 
@@ -39,7 +39,7 @@ object CellReference {
     if (len == 0 || sLen == len) {
       None
     } else {
-      Some((s1, ref.substring(len - sLen)))
+      Some((ref, s1, ref.substring(len - sLen)))
     }
   }
 
@@ -48,11 +48,10 @@ object CellReference {
       .find(_.name == "r")
       .flatMap { attr =>
         splitCellRef(attr.value)
-
       }
       .flatMap {
-        case (s1, s2) =>
-          Try(CellReference(convertColStringToIndex(s1), Integer.parseInt(s2))).toOption
+        case (ref, s1, s2) =>
+          Try(CellReference(ref, convertColStringToIndex(s1), Integer.parseInt(s2))).toOption
       }
   }
 
