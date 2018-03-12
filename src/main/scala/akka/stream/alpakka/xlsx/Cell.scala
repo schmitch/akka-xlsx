@@ -1,5 +1,7 @@
 package akka.stream.alpakka.xlsx
 
+import java.time.LocalDateTime
+
 import scala.util.{ Failure, Success, Try }
 
 sealed abstract class Cell(ref: CellReference)
@@ -11,6 +13,7 @@ object Cell {
   final case class Formula(value: String, ref: CellReference)     extends Cell(ref)
   final case class Bool(value: Boolean, ref: CellReference)       extends Cell(ref)
   final case class Numeric(value: BigDecimal, ref: CellReference) extends Cell(ref)
+  final case class Date(value: LocalDateTime, ref: CellReference) extends Cell(ref)
   final case class Error(t: Throwable, ref: CellReference)        extends Cell(ref)
 
   private def optionBuilderString(
@@ -23,10 +26,16 @@ object Cell {
     }
   }
 
-  private[xlsx] def parseNumeric(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
+  private[xlsx] def parseNumeric(
+      value: Option[java.lang.StringBuilder],
+      numFmtId: Option[Int],
+      ref: CellReference
+  ): Cell = {
     optionBuilderString(value, ref) { data =>
       Try(BigDecimal(data)) match {
-        case Success(v) => Cell.Numeric(v, ref)
+        case Success(v) =>
+          if (DateCell.isDateFormat(numFmtId.getOrElse(0)).nonEmpty) Cell.Date(DateCell.parse(v), ref)
+          else Cell.Numeric(v, ref)
         case Failure(t) => Cell.Error(t, ref)
       }
     }

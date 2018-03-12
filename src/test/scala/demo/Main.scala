@@ -34,8 +34,8 @@ object Main {
 
     val sheetId = 1
     val sheetName = "Blatt1"
-    val path      = Paths.get(args(0))
 
+    val path      = Paths.get(args(0))
     val zipFile = new ZipFile(path.toFile)
 
     val done = XlsxParsing.fromZipFile(zipFile, sheetId).runForeach { row =>

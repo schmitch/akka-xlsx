@@ -13,17 +13,16 @@ import scala.util.Try
 
 object WorkbookStreamer {
 
-  def readWorkbook(sst: Map[Int, String], file: ZipFile)(implicit materializer: Materializer): Future[Workbook] = {
+  def readWorkbook(file: ZipFile)(implicit materializer: Materializer): Future[Map[String, Int]] = {
     Option(file.getEntry("xl/workbook.xml")) match {
-      case Some(entry) => read(sst, file.getInputStream(entry))
+      case Some(entry) => read(file.getInputStream(entry))
       case None        => Future.failed(new Exception("invalid xlsx file"))
     }
   }
 
   private def read(
-      sst: Map[Int, String],
       inputStream: InputStream
-  )(implicit materializer: Materializer): Future[Workbook] = {
+  )(implicit materializer: Materializer): Future[Map[String, Int]] = {
     StreamConverters
       .fromInputStream(() => inputStream)
       .via(XmlParsing.parser)
@@ -53,7 +52,7 @@ object WorkbookStreamer {
             case _ => Nil
           }
       })
-      .runFold(Workbook(sst, Map.empty))((v1, v2) => v1.copy(sheets = v1.sheets + v2))
+      .runFold(Map.empty[String, Int])((v1, v2) => v1 + v2)
   }
 
 }
