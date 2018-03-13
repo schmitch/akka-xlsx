@@ -32,20 +32,22 @@ object Main {
     implicit val materializer: Materializer = ActorMaterializer()
     implicit val ec: ExecutionContext       = actorSystem.dispatcher
 
-    val sheetId = 1
+    val sheetId   = 1
     val sheetName = "Blatt1"
 
-    val path      = Paths.get(args(0))
+    val path    = Paths.get(args(0))
     val zipFile = new ZipFile(path.toFile)
 
     val done = XlsxParsing.fromZipFile(zipFile, sheetId).runForeach { row =>
-      println(row)
+      row.cells.foreach {
+        case Cell.Numeric(value, ref) => println(s"Numeric Cell: $value - $ref")
+        case Cell.Formula(value, formula, ref) => println(s"Formula Cell: $value - $formula - $ref")
+        case _                        =>
+      }
     }
 
     done.onComplete(t => { println(t); actorSystem.terminate() })
   }
-
-
   /*
   def zipStream(path: Path, sheetName: String): Unit = {
     val zipInputStream = new ZipInputStream(Files.newInputStream(path))

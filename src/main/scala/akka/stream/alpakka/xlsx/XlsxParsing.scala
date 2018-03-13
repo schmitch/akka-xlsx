@@ -1,7 +1,7 @@
 package akka.stream.alpakka.xlsx
 
 import java.io.FileNotFoundException
-import java.util.zip.{ ZipEntry, ZipFile }
+import java.util.zip.ZipFile
 
 import akka.NotUsed
 import akka.stream.Materializer
@@ -54,20 +54,26 @@ object XlsxParsing {
 
   private def buildCell(
       typ: Option[CellType],
-      value: Option[java.lang.StringBuilder],
+      value: Option[String],
+      lastFormula: Option[String],
       numFmtId: Option[Int],
       workbook: Workbook,
       ref: CellReference
   ): Cell = {
-    // the default cell type is always NUMERIC
-    typ.getOrElse(CellType.NUMERIC) match {
-      case CellType.BLANK   => Cell.Blank(ref)
-      case CellType.INLINE  => Cell.parseInline(value, ref)
-      case CellType.STRING  => Cell.parseString(value, workbook.sst, ref)
-      case CellType.FORMULA => Cell.parseFormula(value, ref)
-      case CellType.BOOLEAN => Cell.parseBoolean(value, ref)
-      case CellType.ERROR   => Cell.Error(new Exception("cell type is invalid"), ref)
-      case CellType.NUMERIC => Cell.parseNumeric(value, numFmtId.flatMap(id => workbook.styles.get(id)), ref)
+    def parseValue = {
+      // the default cell type is always NUMERIC
+      typ.getOrElse(CellType.NUMERIC) match {
+        case CellType.BLANK                     => Cell.Blank(ref)
+        case CellType.INLINE | CellType.FORMULA => Cell.parseInline(value, ref)
+        case CellType.STRING                    => Cell.parseString(value, workbook.sst, ref)
+        case CellType.BOOLEAN                   => Cell.parseBoolean(value, ref)
+        case CellType.ERROR                     => Cell.Error(new Exception("cell type is invalid"), ref)
+        case CellType.NUMERIC                   => Cell.parseNumeric(value, numFmtId.flatMap(id => workbook.styles.get(id)), ref)
+      }
+    }
+    lastFormula match {
+      case Some(formula) => Cell.Formula(parseValue, formula, ref)
+      case None          => parseValue
     }
   }
 
@@ -89,9 +95,6 @@ object XlsxParsing {
       typ: SheetType,
       sstSink: Sink[(Int, String), Future[Map[Int, String]]]
   )(implicit materializer: Materializer) = {
-    val sstSource   = Source.fromFuture(SstStreamer.readSst(file, sstSink))
-    val styleSource = Source.fromFuture(StyleStreamer.readStyles(file))
-
     Source
       .fromFuture(SstStreamer.readSst(file, sstSink))
       .flatMapConcat(sst => Source.fromFuture(StyleStreamer.readStyles(file)).map((sst, _)))
@@ -104,16 +107,18 @@ object XlsxParsing {
           .fromInputStream(() => getSheetStream(file, typ, workbook))
           .via(XmlParsing.parser)
           .statefulMapConcat[Row](() => {
-            var insideRow: Boolean                              = false
-            var insideCol: Boolean                              = false
-            var insideValue: Boolean                            = false
-            var cellType: Option[CellType]                      = None
-            var contentBuilder: Option[java.lang.StringBuilder] = None
-            var cellList: mutable.TreeMap[Int, Cell]            = mutable.TreeMap.empty
-            var rowNum                                          = 1
-            var cellNum                                         = 1
-            var ref: Option[CellReference]                      = None
-            var numFmtId: Option[Int]                           = None
+            var insideRow: Boolean                   = false
+            var insideCol: Boolean                   = false
+            var insideValue: Boolean                 = false
+            var insideFormula: Boolean               = false
+            var cellType: Option[CellType]           = None
+            var lastContent: Option[String]          = None
+            var lastFormula: Option[String]          = None
+            var cellList: mutable.TreeMap[Int, Cell] = mutable.TreeMap.empty
+            var rowNum                               = 1
+            var cellNum                              = 1
+            var ref: Option[CellReference]           = None
+            var numFmtId: Option[Int]                = None
 
             (data: ParseEvent) =>
               data match {
@@ -121,28 +126,36 @@ object XlsxParsing {
                 case StartElement("c", attrs, _, _, _) if insideRow =>
                   nillable({
                     ref = CellReference.parseRef(attrs)
-                    contentBuilder = Some(new java.lang.StringBuilder())
                     numFmtId = attrs.find(_.name == "s").flatMap(a => Try(Integer.parseInt(a.value)).toOption)
                     cellType = attrs.find(_.name == "t").map(a => CellType.parse(a.value))
                     insideCol = true
                   })
                 case StartElement("v", _, _, _, _) if insideCol =>
                   nillable({ insideValue = true })
+                case StartElement("f", _, _, _, _) if insideCol =>
+                  nillable(insideFormula = true)
                 case Characters(text) if insideValue =>
-                  nillable(contentBuilder.foreach(_.append(text)))
+                  nillable(lastContent = Some(lastContent.map(_ + text).getOrElse(text)))
+                case Characters(text) if insideFormula =>
+                  nillable({
+                    lastFormula = Some(lastFormula.map(_ + text).getOrElse(text))
+                  })
                 case EndElement("v") if insideValue =>
                   nillable({ insideValue = false })
+                case EndElement("f") if insideFormula =>
+                  nillable(insideFormula = false)
                 case EndElement("c") if insideCol =>
                   nillable({
                     val simpleRef = ref.getOrElse(CellReference("", cellNum, rowNum))
-                    val cell      = buildCell(cellType, contentBuilder, numFmtId, workbook, simpleRef)
+                    val cell      = buildCell(cellType, lastContent, lastFormula, numFmtId, workbook, simpleRef)
                     cellList += (simpleRef.colNum -> cell)
                     numFmtId = None
                     ref = None
                     cellNum += 1
                     insideCol = false
                     cellType = None
-                    contentBuilder = None
+                    lastContent = None
+                    lastFormula = None
                   })
                 case EndElement("row") if insideRow =>
                   val ret = new Row(rowNum, cellList)

@@ -8,26 +8,26 @@ sealed abstract class Cell(ref: CellReference)
 
 object Cell {
 
-  final case class Blank(ref: CellReference)                      extends Cell(ref)
-  final case class Text(value: String, ref: CellReference)        extends Cell(ref)
-  final case class Formula(value: String, ref: CellReference)     extends Cell(ref)
-  final case class Bool(value: Boolean, ref: CellReference)       extends Cell(ref)
-  final case class Numeric(value: BigDecimal, ref: CellReference) extends Cell(ref)
-  final case class Date(value: LocalDateTime, ref: CellReference) extends Cell(ref)
-  final case class Error(t: Throwable, ref: CellReference)        extends Cell(ref)
+  final case class Blank(ref: CellReference)                                 extends Cell(ref)
+  final case class Text(value: String, ref: CellReference)                   extends Cell(ref)
+  final case class Formula(value: Cell, formula: String, ref: CellReference) extends Cell(ref)
+  final case class Bool(value: Boolean, ref: CellReference)                  extends Cell(ref)
+  final case class Numeric(value: BigDecimal, ref: CellReference)            extends Cell(ref)
+  final case class Date(value: LocalDateTime, ref: CellReference)            extends Cell(ref)
+  final case class Error(t: Throwable, ref: CellReference)                   extends Cell(ref)
 
   private def optionBuilderString(
-      value: Option[java.lang.StringBuilder],
+      value: Option[String],
       ref: CellReference
   )(call: String => Cell): Cell = {
-    value.map(_.toString()) match {
+    value match {
       case Some(v) if v.nonEmpty => call(v)
       case _                     => Cell.Blank(ref)
     }
   }
 
   private[xlsx] def parseNumeric(
-      value: Option[java.lang.StringBuilder],
+      value: Option[String],
       numFmtId: Option[Int],
       ref: CellReference
   ): Cell = {
@@ -41,12 +41,12 @@ object Cell {
     }
   }
 
-  private[xlsx] def parseInline(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
-    value.map(v => Cell.Text(v.toString, ref)).getOrElse(Cell.Blank(ref))
+  private[xlsx] def parseInline(value: Option[String], ref: CellReference): Cell = {
+    value.map(v => Cell.Text(v, ref)).getOrElse(Cell.Blank(ref))
   }
 
   private[xlsx] def parseString(
-      value: Option[java.lang.StringBuilder],
+      value: Option[String],
       sst: Map[Int, String],
       ref: CellReference
   ): Cell = {
@@ -58,7 +58,7 @@ object Cell {
     }
   }
 
-  private[xlsx] def parseBoolean(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
+  private[xlsx] def parseBoolean(value: Option[String], ref: CellReference): Cell = {
     optionBuilderString(value, ref) { data =>
       Try(java.lang.Boolean.parseBoolean(data)) match {
         case Success(b) => Cell.Bool(b, ref)
@@ -67,8 +67,8 @@ object Cell {
     }
   }
 
-  private[xlsx] def parseFormula(value: Option[java.lang.StringBuilder], ref: CellReference): Cell = {
-    value.map(v => Cell.Text(v.toString, ref)).getOrElse(Cell.Blank(ref))
+  private[xlsx] def parseFormula(value: Option[String], ref: CellReference): Cell = {
+    value.map(v => Cell.Text(v, ref)).getOrElse(Cell.Blank(ref))
   }
 
 }
