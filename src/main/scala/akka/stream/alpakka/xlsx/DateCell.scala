@@ -11,24 +11,6 @@ private[xlsx] object DateCell {
   val SECONDS_PER_DAY: Int   = HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE
   val DAY_MILLISECONDS: Long = SECONDS_PER_DAY * 1000L
 
-  def isDateFormat(format: Int): Option[String] = {
-    // Ecma Office Open XML Part 1 Page 1777 - SpreadsheetML Reference
-    format match {
-      case 14 => Some("mm-dd-yy")
-      case 15 => Some("d-mmm-yy")
-      case 16 => Some("d-mmm")
-      case 17 => Some("mmm-yy")
-      case 18 => Some("h:mm AM/PM")
-      case 19 => Some("h:mm:ss AM/PM")
-      case 20 => Some("h:mm")
-      case 21 => Some("h:mm:ss")
-      case 22 => Some("m/d/yy h:mm")
-      case 45 => Some("mm:ss")
-      case 46 => Some("[h]:mm:ss")
-      case 47 => Some("mmss.0")
-      case _  => None
-    }
-  }
 
   def parse(
       date: BigDecimal,

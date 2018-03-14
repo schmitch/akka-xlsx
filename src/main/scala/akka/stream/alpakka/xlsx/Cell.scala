@@ -34,7 +34,7 @@ object Cell {
     optionBuilderString(value, ref) { data =>
       Try(BigDecimal(data)) match {
         case Success(v) =>
-          if (DateCell.isDateFormat(numFmtId.getOrElse(0)).nonEmpty) Cell.Date(DateCell.parse(v), ref)
+          if (DateParser.isInternalDateFormat(numFmtId.getOrElse(0)).nonEmpty) Cell.Date(DateCell.parse(v), ref)
           else Cell.Numeric(v, ref)
         case Failure(t) => Cell.Error(t, ref)
       }
