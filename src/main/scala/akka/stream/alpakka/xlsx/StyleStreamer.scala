@@ -50,7 +50,6 @@ object StyleStreamer {
               val numFmtString = attrs.find(_.name == "formatCode").map(_.value)
 
               val isDateCode = DateParser.isADateFormat(numFmtId.getOrElse(0), numFmtString)
-              println(s"isDateCode: $isDateCode")
 
               numFmtId match {
                 case Some(numId) if isDateCode =>
