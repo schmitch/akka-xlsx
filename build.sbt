@@ -7,7 +7,7 @@ lazy val AlpakkaXmlVersion = "0.17"
 
 lazy val commonSettings = Seq(
   updateOptions := updateOptions.value.withGigahorse(false),
-  scalaVersion := "2.12.3",
+  scalaVersion := "2.12.6",
   organization := "de.envisia.akka",
   scalacOptions in (Compile, doc) ++= Seq(
     "-target:jvm-1.8",

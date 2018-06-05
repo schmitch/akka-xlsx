@@ -32,17 +32,20 @@ object Main {
     implicit val materializer: Materializer = ActorMaterializer()
     implicit val ec: ExecutionContext       = actorSystem.dispatcher
 
-    val sheetId   = 1
+    val sheetId = 1
 
     val path    = Paths.get(args(0))
     val zipFile = new ZipFile(path.toFile)
 
     val done = XlsxParsing.fromZipFile(zipFile, sheetId).runForeach { row =>
-      row.cells.foreach {
-        case Cell.Date(value, _) => println(s"Date Cell: $value")
-        case Cell.Numeric(value, ref) => println(s"Numeric Cell: $value - $ref")
-        case Cell.Formula(value, formula, ref) => println(s"Formula Cell: $value - $formula - $ref")
-        case _                        =>
+      if (row.rowNum == 2) {
+        row.cells.foreach {
+          case Cell.Date(value, _)               => println(s"Date Cell: $value")
+          case Cell.Numeric(value, ref)          => println(s"Numeric Cell: $value - $ref")
+          case Cell.Formula(value, formula, ref) => println(s"Formula Cell: $value - $formula - $ref")
+          case Cell.Text(value, _)               => println(s"Text Cell: $value")
+          case _                                 =>
+        }
       }
     }
 
