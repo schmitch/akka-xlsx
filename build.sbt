@@ -2,8 +2,8 @@ import ReleaseTransformations._
 
 name := "akka-xlsx"
 
-lazy val AkkaVersion       = "2.5.11"
-lazy val AlpakkaXmlVersion = "0.17"
+lazy val AkkaVersion       = "2.5.12"
+lazy val AlpakkaXmlVersion = "0.19"
 
 lazy val commonSettings = Seq(
   updateOptions := updateOptions.value.withGigahorse(false),
