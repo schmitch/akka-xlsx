@@ -13,6 +13,7 @@ import akka.stream.alpakka.xlsx._
 
 import scala.collection.mutable
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.io.StdIn
 
 object Main {
 
@@ -38,14 +39,17 @@ object Main {
     val zipFile = new ZipFile(path.toFile)
 
     val done = XlsxParsing.fromZipFile(zipFile, sheetId).runForeach { row =>
-      if (row.rowNum == 2) {
-        row.cells.foreach {
-          case Cell.Date(value, _)               => println(s"Date Cell: $value")
-          case Cell.Numeric(value, ref)          => println(s"Numeric Cell: $value - $ref")
-          case Cell.Formula(value, formula, ref) => println(s"Formula Cell: $value - $formula - $ref")
-          case Cell.Text(value, _)               => println(s"Text Cell: $value")
+      if (row.rowNum > 1) {
+        val sb = new mutable.StringBuilder()
+        row.cells.zipWithIndex.foreach {
+          case (Cell.Date(value, _), index)               => sb.append(s"$index: $value ")
+          case (Cell.Numeric(value, ref), index)          => sb.append(s"$index: $value ")
+          case (Cell.Formula(value, formula, ref), index) => sb.append(s"$index: $value ")
+          case (Cell.Text(value, _), index)               => sb.append(s"$index: $value ")
           case _                                 =>
         }
+        println(sb.toString())
+        // StdIn.readLine()
       }
     }
 

@@ -122,7 +122,7 @@ object XlsxParsing {
 
             (data: ParseEvent) =>
               data match {
-                case StartElement("row", _, _, _, _) => nillable(insideRow = true)
+                case StartElement("row", _, _, _, _) => nillable({ insideRow = true })
                 case StartElement("c", attrs, _, _, _) if insideRow =>
                   nillable({
                     ref = CellReference.parseRef(attrs)
@@ -133,9 +133,9 @@ object XlsxParsing {
                 case StartElement("v", _, _, _, _) if insideCol =>
                   nillable({ insideValue = true })
                 case StartElement("f", _, _, _, _) if insideCol =>
-                  nillable(insideFormula = true)
+                  nillable({ insideFormula = true })
                 case Characters(text) if insideValue =>
-                  nillable(lastContent = Some(lastContent.map(_ + text).getOrElse(text)))
+                  nillable({ lastContent = Some(lastContent.map(_ + text).getOrElse(text)) })
                 case Characters(text) if insideFormula =>
                   nillable({
                     lastFormula = Some(lastFormula.map(_ + text).getOrElse(text))
@@ -143,7 +143,7 @@ object XlsxParsing {
                 case EndElement("v") if insideValue =>
                   nillable({ insideValue = false })
                 case EndElement("f") if insideFormula =>
-                  nillable(insideFormula = false)
+                  nillable({ insideFormula = false })
                 case EndElement("c") if insideCol =>
                   nillable({
                     val simpleRef = ref.getOrElse(CellReference("", cellNum, rowNum))

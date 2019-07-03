@@ -2,12 +2,13 @@ import ReleaseTransformations._
 
 name := "akka-xlsx"
 
-lazy val AkkaVersion       = "2.5.12"
-lazy val AlpakkaXmlVersion = "0.19"
+lazy val AkkaVersion       = "2.5.23"
+lazy val AlpakkaXmlVersion = "1.1.0"
 
 lazy val commonSettings = Seq(
   updateOptions := updateOptions.value.withGigahorse(false),
-  scalaVersion := "2.12.6",
+  scalaVersion := "2.12.8",
+  crossScalaVersions := Seq("2.12.8", "2.13.0"),
   organization := "de.envisia.akka",
   scalacOptions in (Compile, doc) ++= Seq(
     "-target:jvm-1.8",
@@ -43,6 +44,7 @@ developers += Developer(
   new URL("https://github.com/schmitch/")
 )
 
+releaseCrossBuild := true
 releasePublishArtifactsAction := PgpKeys.publishSigned.value
 releaseProcess := Seq[ReleaseStep](
   checkSnapshotDependencies,
